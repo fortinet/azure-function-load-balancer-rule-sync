@@ -13,6 +13,8 @@ import { resolve } from 'path';
 // Creates SLB rules on a triggered event in the FortiGate
 
 // TODO: fail on backend pool not existing: At least one backend pool and one probe must exist before you can create a rule. You can create a backend pool at Settings > Backend pools, and you can create a probe at Settings > Probes, or by clicking here.
+// TODO: Delete ports no longer on fortigate
+// FIX : Manually Creating a rule on the SLB will cause an error to occur in the script on CreateorUpdate
 const
     SCAN_INTERVAL = process.env.SCAN_INTERVAL,
     REST_APP_ID = process.env.REST_APP_ID,
@@ -119,14 +121,19 @@ class AddLoadBalancerPort {
         }
 
 }
+//
     public getMappedPorts(portRange){
         if (portRange.includes('-')) {
 
         }
     }
+    public range(size:number, startAt:number):ReadonlyArray<number> {
+        return [...Array(size).keys()].map(i => i + startAt);
+    }
+
     public async buildLoadBalancerParameters() {
         console.log(PERSISTENCE);
-
+        var parameters;
         try {
             var vipStringList: any  =  await this.getFortiGateVIPs();
             var vipJSONList = JSON.parse(vipStringList);
@@ -139,36 +146,62 @@ class AddLoadBalancerPort {
         if (vipJSONList && vipJSONList.results) {
             var persistence = this.getMappedloadDistribution();
             for (let vipList of vipJSONList.results) {
-                if (vipList.extport.includes('-')) {
-                    var splitPortRange = vipList.extport.split('-');
-                    console.log(splitPortRange);
-                    // for(var int in splitPortRange){
-
-                    // }
+                if (parseInt(vipList.extport, 10)=== 0 || parseInt(vipList.mappedport, 10)===0){
+                    console.log("External and Backend Ports of 0 are not supported. Skipping Rule: " + vipList.name);
 
                 }
-                var mappedProtocol = this.getMappedProtocol(vipList.protocol);
-                var parameters = {
-                    protocol : mappedProtocol,
-                    loadDistribution : persistence,
-                    frontendIPConfiguration : {
-                        id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/frontendIPConfigurations/${FRONTEND_IP_NAME}`,
-                    },
-                    backendAddressPool:
-                    { id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/backendAddressPools/${BACKEND_POOL_NAME}`,
-                    },
-                    probe:
-                    { id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/probes/${PROBE_NAME}`,
-                    },
-                    frontendPort : parseInt(vipList.extport, 10),
-                    backendPort : parseInt(vipList.mappedport, 10),
-                    name: vipList.name,
-                };
-                loadBalancingRules.push(parameters);
+                else if (vipList.extport.includes('-')) {
+                    var splitPortRange = vipList.extport.split('-');
+                    let getRange = this.range( parseInt(splitPortRange[1])- parseInt(splitPortRange[0])+1, parseInt(splitPortRange[0]));
+                    console.log("range " + getRange);
+                    console.log(splitPortRange);
+
+                    for (var port in getRange){
+                        var mappedProtocol = this.getMappedProtocol(vipList.protocol);
+                        parameters = {
+                            protocol : mappedProtocol,
+                            loadDistribution : persistence,
+                            frontendIPConfiguration : {
+                                id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/frontendIPConfigurations/${FRONTEND_IP_NAME}`,
+                            },
+                            backendAddressPool:
+                            { id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/backendAddressPools/${BACKEND_POOL_NAME}`,
+                            },
+                            probe:
+                            { id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/probes/${PROBE_NAME}`,
+                            },
+                            frontendPort : getRange[port],
+                            backendPort : getRange[port],
+                            name: vipList.name + "-" + port,
+                        };
+                        loadBalancingRules.push(parameters);
+                    }
+                    // for(var int in splitPortRange){
+                    // }
+                }else {
+                    var mappedProtocol = this.getMappedProtocol(vipList.protocol);
+                    parameters = {
+                        protocol : mappedProtocol,
+                        loadDistribution : persistence,
+                        frontendIPConfiguration : {
+                            id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/frontendIPConfigurations/${FRONTEND_IP_NAME}`,
+                        },
+                        backendAddressPool:
+                        { id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/backendAddressPools/${BACKEND_POOL_NAME}`,
+                        },
+                        probe:
+                        { id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/probes/${PROBE_NAME}`,
+                        },
+                        frontendPort : parseInt(vipList.extport, 10),
+                        backendPort : parseInt(vipList.mappedport, 10),
+                        name: vipList.name,
+                    };
+                    loadBalancingRules.push(parameters);
+                }
             }
-             for (var i in loadBalancingRules) {
-                 console.log('****************************************************************************');
-                 console.log(loadBalancingRules[i]);}
+            //  for (var i in loadBalancingRules) {
+            //      console.log('****************************************************************************');
+            //      console.log(loadBalancingRules[i]);}
             return loadBalancingRules;
 
         }
@@ -177,7 +210,7 @@ class AddLoadBalancerPort {
     public async addPortToExternalLoadBalancer() {
         var protocol: Models.TransportProtocol = 'Tcp';
         var loadDistribution: Models.LoadDistribution = 'SourceIPProtocol';
-        var getloadBalancingRules : any= await this.buildLoadBalancerParameters();
+        var getloadBalancingRules : any = await this.buildLoadBalancerParameters();
         var parameters = {
             location: LOCATION,
             loadBalancingRules:getloadBalancingRules,
