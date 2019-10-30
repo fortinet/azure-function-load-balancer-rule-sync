@@ -30,7 +30,12 @@ const
     LOCATION = process.env.LOCATION,
     FRONTEND_IP_NAME = process.env.FRONTEND_IP_NAME,
     BACKEND_POOL_NAME = process.env.BACKEND_POOL_NAME,
-    PROBE_NAME = process.env.PROBE_NAME;
+    PROBE_NAME = process.env.PROBE_NAME,
+    CONSTRUCTED_FRONTEND_URL = `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/frontendIPConfigurations/${FRONTEND_IP_NAME}`,
+    CONSTRUCTED_BACKEND_URL = `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/backendAddressPools/${BACKEND_POOL_NAME}`,
+    CONSTRUCTED_PROBE_URL = `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/probes/${PROBE_NAME}`;
+
+
 
 const token = process.env.TOKEN;
 const credentials = new msRest.TokenCredentials(token);
@@ -301,13 +306,13 @@ class AddLoadBalancerPort {
                             protocol : mappedProtocol,
                             loadDistribution : persistence,
                             frontendIPConfiguration : {
-                                id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/frontendIPConfigurations/${FRONTEND_IP_NAME}`,
+                                id: CONSTRUCTED_FRONTEND_URL,
                             },
                             backendAddressPool:
-                            { id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/backendAddressPools/${BACKEND_POOL_NAME}`,
+                            { id: CONSTRUCTED_BACKEND_URL,
                             },
                             probe:
-                            { id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/probes/${PROBE_NAME}`,
+                            { id: CONSTRUCTED_PROBE_URL,
                             },
                             frontendPort : getRange[port],
                             backendPort : getRange[port],
@@ -322,13 +327,13 @@ class AddLoadBalancerPort {
                         protocol : mappedProtocol,
                         loadDistribution : persistence,
                         frontendIPConfiguration : {
-                            id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/frontendIPConfigurations/${FRONTEND_IP_NAME}`,
+                            id: CONSTRUCTED_FRONTEND_URL,
                         },
                         backendAddressPool:
-                        { id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/backendAddressPools/${BACKEND_POOL_NAME}`,
+                        { id: CONSTRUCTED_BACKEND_URL,
                         },
                         probe:
-                        { id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/probes/${PROBE_NAME}`,
+                        { id: CONSTRUCTED_PROBE_URL,
                         },
                         frontendPort : parseInt(vipList.extport, 10),
                         backendPort : parseInt(vipList.mappedport, 10),
@@ -350,7 +355,7 @@ class AddLoadBalancerPort {
         var parameters:any = {
             location: LOCATION,
             frontendIPConfigurations:[{
-               id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/frontendIPConfigurations/${FRONTEND_IP_NAME}`,
+               id: CONSTRUCTED_FRONTEND_URL,
                 publicIPAddress: {
                     id: publicIP,
                 },
@@ -360,7 +365,7 @@ class AddLoadBalancerPort {
 
             ],
             backendAddressPools: [{
-                id:  `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/backendAddressPools/${BACKEND_POOL_NAME}`,
+                id:  CONSTRUCTED_BACKEND_URL,
                 backendIPConfigurations: [{
                     id: backendIPconfig,
                 }],
@@ -368,7 +373,7 @@ class AddLoadBalancerPort {
 
             }],
             probes:[{
-                id: `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/probes/${PROBE_NAME}`,
+                id: CONSTRUCTED_PROBE_URL,
                 port: probePort,
                 name: PROBE_NAME,
             }],
