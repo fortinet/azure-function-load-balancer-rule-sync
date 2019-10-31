@@ -47,15 +47,7 @@ exports.main = async function(context, req) {
         var getPorts: any = await addELBPort.getFortiGateVIPs();
         // console.log("ports" + getPorts);
         addELBPort.addPortToExternalLoadBalancer();
-        // addELBPort.buildLoadBalancerParameters();
-        // addELBPort.getProbePort();
-        // addELBPort.getFrontEndPublicIP();
-        // addELBPort.getbackendIPConfigurationList();
-        // await addELBPort.deleteLoadBalancerRule("asdfawefawe");
-        // addELBPort.getfrontendIPConfigurations();
-        // addELBPort.compareRules();
 
-        // console.log(getPorts.toString());
         if (req && req.body && req.body.data && req.body.data.rawlog && req.body.data.rawog.srcip) {
         try {
             var src_ip = req.body.data.rawlog.srcip;
@@ -104,12 +96,12 @@ class AddLoadBalancerPort {
             }
         } else {
             const getELB = this.loadBalancerJSON;
-            console.log('****** RETURNED INFO FROM PRE_feteched json');
             return getELB;
         }
     }
     public getFortiGateVIPs() {
         let getPorts = new FortiGateAPIRequests('/api/v2/cmdb/firewall/vip');
+        console.log('Fetching VIP data from Frotigate: ' + FORTIGATE_IP);
         return getPorts.httpsGetRequest();
     }
 
@@ -119,12 +111,17 @@ class AddLoadBalancerPort {
         } else if (fortigateProtocol === 'udp') {
             return 'Udp';
         } else if (fortigateProtocol === 'sctp') {
-            throw console.error('SCTP is not supported in Azure Load Balancers. Pick UDP or TCP in the VIP'
-             + fortigateProtocol);
+            console.log('SCTP is not supported in Azure Load Balancers. Pick UDP or TCP in the VIP '
+             + fortigateProtocol + ' returning null');
+            return null;
         } else if (fortigateProtocol === 'icmp') {
-            return 'Tcp';
+            console.log('ICMP is not supported in Azure Load Balancers. Pick UDP or TCP in the VIP '
+            + fortigateProtocol + ' returning null');
+            return null;
         } else {
-            throw console.error('No protocol could be maped using the current values:' + fortigateProtocol);
+            console.log('Unkown protocol found '
+            + fortigateProtocol + ' returning null');
+            return null;
         }
     }
     // Get Persistence type Must be one of: "Default" | "SourceIP" | "SourceIPProtocol"
@@ -150,7 +147,8 @@ class AddLoadBalancerPort {
                 console.log('Public IP: ' + item.name, item.publicIPAddress.id);
                 return item.publicIPAddress.id;
             } else {
-                throw console.error('Error in getFrontEndPublicIP. No FontEnd Config found with the name ' + FRONTEND_IP_NAME);
+                throw console.error('Error in getFrontEndPublicIP. No FontEnd Config found with the name '
+                 + FRONTEND_IP_NAME);
             }
         }
     } else {
@@ -166,7 +164,7 @@ class AddLoadBalancerPort {
         if (getELB && getELB.backendAddressPools) {
         for (let item of getELB.backendAddressPools) {
             if (item.name === BACKEND_POOL_NAME) {
-                console.log('POOL NAME: ' + item.name, item.backendIPConfigurations);
+                console.log('Backend Pool Name: ' + item.name, item.backendIPConfigurations);
                 return item.backendIPConfigurations;
             } else {
                 throw console.error('Error in getFrontEndPublicIP. No FontEnd Config found with the name ' + FRONTEND_IP_NAME);
@@ -206,20 +204,12 @@ class AddLoadBalancerPort {
         return [...Array(size).keys()].map((i) => i + startAt);
     }
 
-    // TODO: remove
-
     public splitURL(indexItem) {
         var lastindex = indexItem.lastIndexOf('/');
         var result = indexItem.substring(lastindex + 1);
         return result;
     }
 
-    public async buildfrontendIPConfigurationsParameters() {
-        var configList = await this.getfrontendIPConfigurations();
-        for (let frontEndConfig in configList) {
-
-        }
-    }
     public async buildLoadBalancerParameters() {
         console.log(PERSISTENCE);
         var parameters;
@@ -262,7 +252,10 @@ class AddLoadBalancerPort {
                             console.log('Overlapping Port Ranges not supported. Dropping: ' + vipList.name
                              + mappedProtocol);
                             break;
-
+                        } else if (mappedProtocol === null) {
+                            console.log('Unsupported Protocol Dropping VIP rule: ' + vipList.name + ' '
+                            + mappedProtocol);
+                            break;
                         } else {
 
                                 parameters = {
@@ -302,6 +295,10 @@ class AddLoadBalancerPort {
                     } else if (mappedProtocol === 'Udp' && portsAddedUDP.includes(parseInt(vipList.extport, 10))) {
                         console.log('Overlapping Port Ranges not supported. Dropping: ' + vipList.name + ' '
                             + mappedProtocol);
+                        break;
+                    } else if (mappedProtocol === null) {
+                        console.log('Unsupported Protocol Dropping VIP rule: ' + vipList.name + ' '
+                        + mappedProtocol);
                         break;
                     } else {
                     parameters = {
@@ -398,7 +395,7 @@ class FortiGateAPIRequests {
             };
             https.get(url, options, async function(res) {
                      var body = '';
-                     console.log('StatusCode: ' + res.statusCode);
+                     console.log('Fortigate StatusCode: ' + res.statusCode);
                      res.on('data', function(chunk) {
                         body = body + chunk;
                      });
