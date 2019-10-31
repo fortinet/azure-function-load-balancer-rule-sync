@@ -10,8 +10,7 @@ import https from 'https';
 // Scans the FortiGate and SLB every 5 minutes to ensure that rules match.
 // Creates SLB rules on a triggered event in the FortiGate
 
-
-//TODO: ? Error: Error: Another operation on this or dependent resource is in progress.
+// TODO: ? Error: Error: Another operation on this or dependent resource is in progress.
 
 // tslint:disable-next-line: max-line-length
 // TODO: fail on backend pool not existing: At least one backend pool and one probe must exist before you can create a rule. You can create a backend pool at Settings > Backend pools, and you can create a probe at Settings > Probes, or by clicking here.
@@ -35,31 +34,27 @@ const
     CONSTRUCTED_BACKEND_URL = `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/backendAddressPools/${BACKEND_POOL_NAME}`,
     CONSTRUCTED_PROBE_URL = `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/probes/${PROBE_NAME}`;
 
-
-
 const token = process.env.TOKEN;
 const credentials = new msRest.TokenCredentials(token);
 const client = new NetworkManagementClient(credentials, SUBSCRIPTION_ID);
-
 
 exports.main = async function(context, req) {
 
         console.log('JavaScript HTTP trigger function processed a request.');
         var addELBPort = new AddLoadBalancerPort();
         var elbPorts = await addELBPort.getLoadBalancerPorts();
-        console.log("************************ELBPORTS*************************" + JSON.stringify(elbPorts));
-        //var getELB = await addELBPort.getLoadBalancer();
+        console.log('************************ELBPORTS*************************' + JSON.stringify(elbPorts));
+        // var getELB = await addELBPort.getLoadBalancer();
         var getPorts: any = await addELBPort.getFortiGateVIPs();
-        //console.log("ports" + getPorts);
+        // console.log("ports" + getPorts);
         addELBPort.addPortToExternalLoadBalancer();
-        addELBPort.buildLoadBalancerParameters();
-        addELBPort.getProbePort();
-        addELBPort.getFrontEndPublicIP();
-        addELBPort.getbackendIPConfigurationList();
-        //await addELBPort.deleteLoadBalancerRule("asdfawefawe");
-        //addELBPort.getfrontendIPConfigurations();
-        //addELBPort.compareRules();
-
+        // addELBPort.buildLoadBalancerParameters();
+        // addELBPort.getProbePort();
+        // addELBPort.getFrontEndPublicIP();
+        // addELBPort.getbackendIPConfigurationList();
+        // await addELBPort.deleteLoadBalancerRule("asdfawefawe");
+        // addELBPort.getfrontendIPConfigurations();
+        // addELBPort.compareRules();
 
         // console.log(getPorts.toString());
         if (req && req.body && req.body.data && req.body.data.rawlog && req.body.data.rawog.srcip) {
@@ -76,7 +71,7 @@ exports.main = async function(context, req) {
 // Probably better to Get Full JSON then get ports etc as needed.
 
 class AddLoadBalancerPort {
-    //private azureLoadBalancerJSON : any = this.getLoadBalancer();
+    // private azureLoadBalancerJSON : any = this.getLoadBalancer();
     public async getLoadBalancerPorts() {
         const getELB = await this.getLoadBalancer();
         var getPorts = getELB.inboundNatRules;
@@ -90,13 +85,10 @@ class AddLoadBalancerPort {
         var backEndPorts = natRules.backendPort;
         return backEndPorts;
     }
-    public async getfrontendIPConfigurations(){
+    public async getfrontendIPConfigurations() {
         const getfrontEnd  = await this.getLoadBalancer();
         var getfrontEndConfigurations = getfrontEnd.frontendIPConfigurations;
         return getfrontEndConfigurations;
-    }
-    public async updateLoadBalancer() {
-
     }
     public async scanLoadBalancer() {
 
@@ -104,16 +96,16 @@ class AddLoadBalancerPort {
     public async scanFortiGatePorts() {
 
     }
-    //TODO: remove
-    public async deleteLoadBalancerRule(ruleName){
-       var constructedUrl = 'https://management.azure.com' +`/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/frontendIPConfigurations/${FRONTEND_IP_NAME}/${ruleName}?api-version=2019-09-01`
-        //var constructedUrl = 'https://management.azure.com' + `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/loadBalancingRules/${ruleName}?api-version=2019-09-01`;
-        console.log("*****************URL**************" + constructedUrl);
-        const req: msRest.RequestPrepareOptions = {
-            url: constructedUrl,//`https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Storage/storageAccounts?api-version=2015-06-15`,
-            method: 'DELETE'
+    // TODO: remove
+    public async deleteLoadBalancerRule(ruleName) {
+       var constructedUrl = 'https://management.azure.com' + `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/frontendIPConfigurations/${FRONTEND_IP_NAME}/${ruleName}?api-version=2019-09-01`;
+        // var constructedUrl = 'https://management.azure.com' + `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/loadBalancingRules/${ruleName}?api-version=2019-09-01`;
+       console.log('*****************URL**************' + constructedUrl);
+       const req: msRest.RequestPrepareOptions = {
+            url: constructedUrl, // `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Storage/storageAccounts?api-version=2015-06-15`,
+            method: 'DELETE',
           };
-          await client.sendRequest(req).then(function (res: msRest.HttpOperationResponse) {
+       await client.sendRequest(req).then(function(res: msRest.HttpOperationResponse) {
             console.log(res.bodyAsText);
           });
 
@@ -132,7 +124,7 @@ class AddLoadBalancerPort {
     }
     public async getLoadBalancer() {
         const getELB = await client.loadBalancers.get(RESOURCE_GROUP_NAME, LOADBALANCER_NAME);
-        //console.log("getELB" + JSON.stringify(getELB));
+        // console.log("getELB" + JSON.stringify(getELB));
         return getELB;
     }
     public getFortiGateVIPs() {
@@ -169,18 +161,18 @@ class AddLoadBalancerPort {
 
 }
 // Get the Public IP tied to the front End Config. Required to Update loadbalancer rules.
-    public async getFrontEndPublicIP(){
+    public async getFrontEndPublicIP() {
         const getELB  = await this.getLoadBalancer();
-        if(getELB && getELB.frontendIPConfigurations){
-        for(let item of getELB.frontendIPConfigurations){
-            if (item.name === FRONTEND_IP_NAME){
-                console.log("Public IP: " + item.name, item.publicIPAddress.id)
+        if (getELB && getELB.frontendIPConfigurations) {
+        for (let item of getELB.frontendIPConfigurations) {
+            if (item.name === FRONTEND_IP_NAME) {
+                console.log('Public IP: ' + item.name, item.publicIPAddress.id);
                 return item.publicIPAddress.id;
             } else {
                 throw console.error('Error in getFrontEndPublicIP. No FontEnd Config found with the name ' + FRONTEND_IP_NAME);
             }
         }
-    } else{
+    } else {
         throw console.error('Error in getFrontEndPublicIP. JSON data could not be retrieved.');
 
     }
@@ -188,18 +180,18 @@ class AddLoadBalancerPort {
         throw console.error('Error in getFrontEndPublicIP. JSON data could not be retrieved.');
     }
 // Returns a list of resource ID's attached to the backendAddress Pool. Required to update LoadBalancing rules.
-    public async getbackendIPConfigurationList(){
+    public async getbackendIPConfigurationList() {
         const getELB  = await this.getLoadBalancer();
-        if(getELB && getELB.backendAddressPools){
-        for(let item of getELB.backendAddressPools){
-            if (item.name === BACKEND_POOL_NAME){
-                console.log("POOL NAME: " + item.name, item.backendIPConfigurations);
+        if (getELB && getELB.backendAddressPools) {
+        for (let item of getELB.backendAddressPools) {
+            if (item.name === BACKEND_POOL_NAME) {
+                console.log('POOL NAME: ' + item.name, item.backendIPConfigurations);
                 return item.backendIPConfigurations;
             } else {
                 throw console.error('Error in getFrontEndPublicIP. No FontEnd Config found with the name ' + FRONTEND_IP_NAME);
             }
         }
-    } else{
+    } else {
         throw console.error('Error in getFrontEndPublicIP. JSON data could not be retrieved.');
 
     }
@@ -207,61 +199,59 @@ class AddLoadBalancerPort {
         throw console.error('Error in getFrontEndPublicIP. JSON data could not be retrieved.');
     }
 
-
 // Get the Port tied to the probe. Required to Create/Update loadbalancer rules.
-    public async getProbePort(){
+    public async getProbePort() {
         const getELB  = await this.getLoadBalancer();
 
-        if(getELB && getELB.probes){
-        for(let item of getELB.probes){
-            if (item.name === PROBE_NAME){
-                console.log("Probe: " + item.name, item.port)
+        if (getELB && getELB.probes) {
+        for (let item of getELB.probes) {
+            if (item.name === PROBE_NAME) {
+                console.log('Probe: ' + item.name, item.port);
                 return item.port;
             } else {
                 throw console.error('Error in getProbePort. No probe found with the name ' + PROBE_NAME);
             }
         }
-    } else{
+    } else {
         throw console.error('Error in getProbePort. Probes data could not be retrieved.');
 
     }
     // Throw an error here or else typescript will complain
         throw console.error('Error in getProbePort. Probes data could not be retrieved.');
 
-
     }
 
     public range(size: number, startAt: number): ReadonlyArray<number> {
-        return [...Array(size).keys()].map(i => i + startAt);
+        return [...Array(size).keys()].map((i) => i + startAt);
     }
 
-    //TODO: remove
-    public async compareRules(){
+    // TODO: remove
+    public async compareRules() {
         var parameters;
         var aggregatedList = [];
         try {
             var vipStringList: any  =  await this.getFortiGateVIPs();
             var vipJSONList = JSON.parse(vipStringList);
-            //Compare to the front End configs.
+            // Compare to the front End configs.
             var configList: any = await this.getfrontendIPConfigurations();
             var LoadBalancerRules = configList.LoadBalancerRules;
-            console.log("Config List" + JSON.stringify(LoadBalancerRules));
-            console.log("Config List"+ LoadBalancerRules);
+            console.log('Config List' + JSON.stringify(LoadBalancerRules));
+            console.log('Config List'+ LoadBalancerRules);
         } catch (err) {
             console.log(`Error fetching JSON List in buildLoadBalancerParameters : ${err}`);
             throw err;
         }
         if (vipJSONList && vipJSONList.results) {
-            for (let vipList of vipJSONList.results){
-                for(let loadBalancerList of LoadBalancerRules){
-                    if (vipList.name === this.splitURL(loadBalancerList)){
+            for (let vipList of vipJSONList.results) {
+                for (let loadBalancerList of LoadBalancerRules) {
+                    if (vipList.name === this.splitURL(loadBalancerList)) {
                         aggregatedList.push(loadBalancerList);
                 }
 
             }
         }
     }
-    console.log("Aggregated List" + aggregatedList);
+        console.log('Aggregated List' + aggregatedList);
 }
     public splitURL(indexItem) {
         var lastindex = indexItem.lastIndexOf('/');
@@ -269,15 +259,16 @@ class AddLoadBalancerPort {
         return result;
     }
 
-    public async buildfrontendIPConfigurationsParameters(){
+    public async buildfrontendIPConfigurationsParameters() {
         var configList = await this.getfrontendIPConfigurations();
-        for(let frontEndConfig in configList){
+        for (let frontEndConfig in configList) {
 
         }
     }
     public async buildLoadBalancerParameters() {
         console.log(PERSISTENCE);
         var parameters;
+        var item: any;
         try {
             var vipStringList: any  =  await this.getFortiGateVIPs();
             var vipJSONList = JSON.parse(vipStringList);
@@ -287,41 +278,72 @@ class AddLoadBalancerPort {
         }
         // Add parameters here to Loadbalancing rules push to addPortToExternalLoadBalancer as a list and add all at once.
         var loadBalancingRules = [];
+        var portsAddedTCP = [];
+        var portsAddedUDP = [];
         if (vipJSONList && vipJSONList.results) {
             var persistence = this.getMappedloadDistribution();
             for (let vipList of vipJSONList.results) {
-                if (parseInt(vipList.extport, 10) === 0 || parseInt(vipList.mappedport, 10) === 0){
-                    console.log("External and Backend Ports of 0 are not supported. (Make sure PortForwarding is enabled). Skipping Rule: " + vipList.name);
-
-                }
-                else if (vipList.extport.includes('-')) {
+                if (parseInt(vipList.extport, 10) === 0 || parseInt(vipList.mappedport, 10) === 0) {
+                    console.log('External and Backend Ports of 0 are not supported. (Make sure PortForwarding is enabled). Skipping Rule: ' + vipList.name);
+                } else if (vipList.extport.includes('-')) {
                     var splitPortRange = vipList.extport.split('-');
                     let getRange = this.range( parseInt(splitPortRange[1]) - parseInt(splitPortRange[0]) + 1, parseInt(splitPortRange[0]));
-                    console.log("range " + getRange);
+                    console.log('range ' + getRange);
                     console.log(splitPortRange);
 
-                    for (var port in getRange){
+                    for (var port in getRange) {
                         var mappedProtocol = this.getMappedProtocol(vipList.protocol);
-                        parameters = {
-                            protocol : mappedProtocol,
-                            loadDistribution : persistence,
-                            frontendIPConfiguration : {
-                                id: CONSTRUCTED_FRONTEND_URL,
-                            },
-                            backendAddressPool:
-                            { id: CONSTRUCTED_BACKEND_URL,
-                            },
-                            probe:
-                            { id: CONSTRUCTED_PROBE_URL,
-                            },
-                            frontendPort : getRange[port],
-                            backendPort : getRange[port],
-                            name: vipList.name + "-" + port,
-                        };
-                        loadBalancingRules.push(parameters);
-                    }
+                        //
+                        // Check for overlapping ports.If no check is done the entire update request will be dropped.
+                        // Overlapping ports with different protocols are supported.(UDP/TCP)
+                        // Each port is added to a respective list. portsAddedTCP or portsAddedUDP
+                        // This reducces the complexity of iterating over an ever increasing list of objects.
+                        //
+                        if (mappedProtocol === 'Tcp' && portsAddedTCP.includes(getRange[port])) {
+                            console.log('Overlapping Port Ranges not supported. Dropping: ' + vipList.name
+                             + mappedProtocol);
+                            break;
+                        } else if (mappedProtocol === 'Udp' && portsAddedUDP.includes(getRange[port])) {
+                            console.log('Overlapping Port Ranges not supported. Dropping: ' + vipList.name
+                             + mappedProtocol);
+                            break;
 
-                }else {
+                        } else {
+
+                                parameters = {
+                                    protocol : mappedProtocol,
+                                    loadDistribution : persistence,
+                                    frontendIPConfiguration : {
+                                        id: CONSTRUCTED_FRONTEND_URL,
+                                    },
+                                    backendAddressPool:
+                                    { id: CONSTRUCTED_BACKEND_URL,
+                                    },
+                                    probe:
+                                    { id: CONSTRUCTED_PROBE_URL,
+                                    },
+                                    frontendPort : getRange[port],
+                                    backendPort : getRange[port],
+                                    name: vipList.name + '-' + port,
+                                };
+
+                                if (mappedProtocol === 'Tcp') {
+                                     portsAddedTCP.push(getRange[port]);
+                                } else {(mappedProtocol === 'Udp') } {
+                                    portsAddedUDP.push(getRange[port]);
+
+                        }
+
+                                loadBalancingRules.push(parameters);
+                            }
+                            }
+                    //     }
+                    // }
+                        // else {
+                        //     console.log("Port Already Used. Can not add duplicate port entries to Azure Load Balancer Skipping: " + vipList.name + "-" + port,)
+                        // }
+
+                } else {
                     var mappedProtocol = this.getMappedProtocol(vipList.protocol);
                     parameters = {
                         protocol : mappedProtocol,
@@ -351,10 +373,10 @@ class AddLoadBalancerPort {
         var probePort = await this.getProbePort();
         var publicIP = await this.getFrontEndPublicIP();
         var backendIPconfig = await this.getbackendIPConfigurationList();
-        var getloadBalancingRules : any = await this.buildLoadBalancerParameters();
-        var parameters:any = {
+        var getloadBalancingRules: any = await this.buildLoadBalancerParameters();
+        var parameters: any = {
             location: LOCATION,
-            frontendIPConfigurations:[{
+            frontendIPConfigurations: [{
                id: CONSTRUCTED_FRONTEND_URL,
                 publicIPAddress: {
                     id: publicIP,
@@ -372,7 +394,7 @@ class AddLoadBalancerPort {
                 name: BACKEND_POOL_NAME,
 
             }],
-            probes:[{
+            probes: [{
                 id: CONSTRUCTED_PROBE_URL,
                 port: probePort,
                 name: PROBE_NAME,
@@ -390,7 +412,6 @@ class AddLoadBalancerPort {
 
     }
 }
-
 
 // TODO: Update error messages.
 class FortiGateAPIRequests {
