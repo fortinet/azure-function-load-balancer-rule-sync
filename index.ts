@@ -90,38 +90,7 @@ class AddLoadBalancerPort {
         var getfrontEndConfigurations = getfrontEnd.frontendIPConfigurations;
         return getfrontEndConfigurations;
     }
-    public async scanLoadBalancer() {
 
-    }
-    public async scanFortiGatePorts() {
-
-    }
-    // TODO: remove
-    public async deleteLoadBalancerRule(ruleName) {
-       var constructedUrl = 'https://management.azure.com' + `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/frontendIPConfigurations/${FRONTEND_IP_NAME}/${ruleName}?api-version=2019-09-01`;
-        // var constructedUrl = 'https://management.azure.com' + `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/loadBalancingRules/${ruleName}?api-version=2019-09-01`;
-       console.log('*****************URL**************' + constructedUrl);
-       const req: msRest.RequestPrepareOptions = {
-            url: constructedUrl, // `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Storage/storageAccounts?api-version=2015-06-15`,
-            method: 'DELETE',
-          };
-       await client.sendRequest(req).then(function(res: msRest.HttpOperationResponse) {
-            console.log(res.bodyAsText);
-          });
-
-        // const serializer = new msRest.Serializer(Mappers);
-        // const beginDeleteMethodOperationSpec: msRest.OperationSpec = {
-        // tslint:disable-next-line: max-line-length
-        //    rsg-ilmoq/providers/Microsoft.Network/loadBalancers/SLBAutomation-externalSLB-ilmoq/loadBalancingRules/asdfawefawe/
-        // tslint:disable-next-line: max-line-length
-        //     subscriptions/4f27b38c-ad3f-43d8-a9a3-01182e5e2f9a/resourceGroups/SLBAutomation-rsg-ilmoq/providers/Microsoft.Network/loadBalancers/SLBAutomation-externalSLB-ilmoq/loadBalancingRules
-        // tslint:disable-next-line: max-line-length
-        //     `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/frontendIPConfigurations/${FRONTEND_IP_NAME}`,
-            // httpMethod: "DELETE",
-            // // tslint:disable-next-line: max-line-length
-            // tslint:disable-next-line: max-line-length
-            // path: `subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/loadBalancingRules/${ruleName}/`,
-    }
     public async getLoadBalancer() {
         const getELB = await client.loadBalancers.get(RESOURCE_GROUP_NAME, LOADBALANCER_NAME);
         // console.log("getELB" + JSON.stringify(getELB));
@@ -226,33 +195,7 @@ class AddLoadBalancerPort {
     }
 
     // TODO: remove
-    public async compareRules() {
-        var parameters;
-        var aggregatedList = [];
-        try {
-            var vipStringList: any  =  await this.getFortiGateVIPs();
-            var vipJSONList = JSON.parse(vipStringList);
-            // Compare to the front End configs.
-            var configList: any = await this.getfrontendIPConfigurations();
-            var LoadBalancerRules = configList.LoadBalancerRules;
-            console.log('Config List' + JSON.stringify(LoadBalancerRules));
-            console.log('Config List'+ LoadBalancerRules);
-        } catch (err) {
-            console.log(`Error fetching JSON List in buildLoadBalancerParameters : ${err}`);
-            throw err;
-        }
-        if (vipJSONList && vipJSONList.results) {
-            for (let vipList of vipJSONList.results) {
-                for (let loadBalancerList of LoadBalancerRules) {
-                    if (vipList.name === this.splitURL(loadBalancerList)) {
-                        aggregatedList.push(loadBalancerList);
-                }
 
-            }
-        }
-    }
-        console.log('Aggregated List' + aggregatedList);
-}
     public splitURL(indexItem) {
         var lastindex = indexItem.lastIndexOf('/');
         var result = indexItem.substring(lastindex + 1);
@@ -378,7 +321,7 @@ class AddLoadBalancerPort {
             return loadBalancingRules;
 
         }
-        return -1;
+            throw console.error('Error in buildLoadBalancerParameters. Data from fortigate Not present');
     }
     public async addPortToExternalLoadBalancer() {
         var probePort = await this.getProbePort();
