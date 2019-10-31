@@ -337,14 +337,18 @@ class AddLoadBalancerPort {
                                 loadBalancingRules.push(parameters);
                             }
                             }
-                    //     }
-                    // }
-                        // else {
-                        //     console.log("Port Already Used. Can not add duplicate port entries to Azure Load Balancer Skipping: " + vipList.name + "-" + port,)
-                        // }
 
                 } else {
                     var mappedProtocol = this.getMappedProtocol(vipList.protocol);
+                    if (mappedProtocol === 'Tcp' && portsAddedTCP.includes(parseInt(vipList.extport, 10))) {
+                        console.log('Overlapping Port Ranges not supported. Dropping: ' + vipList.name + ' '
+                            + mappedProtocol);
+                        break;
+                    } else if (mappedProtocol === 'Udp' && portsAddedUDP.includes(parseInt(vipList.extport, 10))) {
+                        console.log('Overlapping Port Ranges not supported. Dropping: ' + vipList.name + ' '
+                            + mappedProtocol);
+                        break;
+                    } else {
                     parameters = {
                         protocol : mappedProtocol,
                         loadDistribution : persistence,
@@ -362,6 +366,13 @@ class AddLoadBalancerPort {
                         name: vipList.name,
                     };
                     loadBalancingRules.push(parameters);
+
+                    if (mappedProtocol === 'Tcp') {
+                        portsAddedTCP.push(parseInt(vipList.extport, 10));
+                   } else {(mappedProtocol === 'Udp') } {
+                       portsAddedUDP.push(parseInt(vipList.extport, 10));
+                   }
+           }
                 }
             }
             return loadBalancingRules;
