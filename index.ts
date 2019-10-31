@@ -7,7 +7,6 @@ import { NetworkManagementClient, NetworkManagementModels, NetworkManagementMapp
 import https from 'https';
 
 // Script to update the Ports on an Azure LoadBalancer based on Rules in the FortiGate
-// Scans the FortiGate and SLB every 5 minutes to ensure that rules match.
 // Creates SLB rules on a triggered event in the FortiGate
 
 // TODO: ? Error: Error: Another operation on this or dependent resource is in progress.
@@ -71,7 +70,8 @@ exports.main = async function(context, req) {
 // Probably better to Get Full JSON then get ports etc as needed.
 
 class AddLoadBalancerPort {
-    // private azureLoadBalancerJSON : any = this.getLoadBalancer();
+    private loadBalancerJSON: NetworkManagementModels.LoadBalancersGetResponse;
+
     public async getLoadBalancerPorts() {
         const getELB = await this.getLoadBalancer();
         var getPorts = getELB.inboundNatRules;
@@ -92,9 +92,21 @@ class AddLoadBalancerPort {
     }
 
     public async getLoadBalancer() {
-        const getELB = await client.loadBalancers.get(RESOURCE_GROUP_NAME, LOADBALANCER_NAME);
-        // console.log("getELB" + JSON.stringify(getELB));
-        return getELB;
+        if (!this.loadBalancerJSON) {
+            console.log('Fetching LoadBalancer Data for : ' + LOADBALANCER_NAME +
+            'in resource group: ' + RESOURCE_GROUP_NAME + 'from Azure');
+            try {
+                const getELB = await client.loadBalancers.get(RESOURCE_GROUP_NAME, LOADBALANCER_NAME);
+                this.loadBalancerJSON = getELB;
+                return getELB;
+            } catch (err) {
+                throw console.error('Error in getting Load Balancer Data from Azure: ' + err);
+            }
+        } else {
+            const getELB = this.loadBalancerJSON;
+            console.log('****** RETURNED INFO FROM PRE_feteched json');
+            return getELB;
+        }
     }
     public getFortiGateVIPs() {
         let getPorts = new FortiGateAPIRequests('/api/v2/cmdb/firewall/vip');
@@ -272,7 +284,7 @@ class AddLoadBalancerPort {
 
                                 if (mappedProtocol === 'Tcp') {
                                      portsAddedTCP.push(getRange[port]);
-                                } else {(mappedProtocol === 'Udp') } {
+                                } else {(mappedProtocol === 'Udp'); } {
                                     portsAddedUDP.push(getRange[port]);
 
                         }
@@ -312,7 +324,7 @@ class AddLoadBalancerPort {
 
                     if (mappedProtocol === 'Tcp') {
                         portsAddedTCP.push(parseInt(vipList.extport, 10));
-                   } else {(mappedProtocol === 'Udp') } {
+                   } else {(mappedProtocol === 'Udp'); } {
                        portsAddedUDP.push(parseInt(vipList.extport, 10));
                    }
            }
@@ -321,7 +333,7 @@ class AddLoadBalancerPort {
             return loadBalancingRules;
 
         }
-            throw console.error('Error in buildLoadBalancerParameters. Data from fortigate Not present');
+        throw console.error('Error in buildLoadBalancerParameters. Data from fortigate Not present');
     }
     public async addPortToExternalLoadBalancer() {
         var probePort = await this.getProbePort();
@@ -369,7 +381,6 @@ class AddLoadBalancerPort {
 
 // TODO: Update error messages.
 class FortiGateAPIRequests {
-    // TODO: does this make sense? What if I have multple  GET/POST/PUT will the request stay the same?
     private path: string;
     constructor(path: string) {
         this.path = path;
@@ -395,7 +406,7 @@ class FortiGateAPIRequests {
                         resolve(body);
                     });
                    }).on('error', function(e) {
-                     console.log('Got error: ' + e.message);
+                     console.log('Error retreiving data from Fortigate: ' + e.message);
                    });
 
                 });
