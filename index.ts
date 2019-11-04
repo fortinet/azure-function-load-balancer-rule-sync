@@ -15,7 +15,6 @@ import https from 'https';
 // TODO: fail on backend pool not existing: At least one backend pool and one probe must exist before you can create a rule. You can create a backend pool at Settings > Backend pools, and you can create a probe at Settings > Probes, or by clicking here.
 
 const
-    SCAN_INTERVAL = process.env.SCAN_INTERVAL,
     REST_APP_ID = process.env.REST_APP_ID,
     REST_APP_SECRET = process.env.REST_APP_SECRET,
     SUBSCRIPTION_ID = process.env.SUBSCRIPTION_ID,
@@ -29,23 +28,25 @@ const
     FRONTEND_IP_NAME = process.env.FRONTEND_IP_NAME,
     BACKEND_POOL_NAME = process.env.BACKEND_POOL_NAME,
     PROBE_NAME = process.env.PROBE_NAME,
+    SHOW_PAREMETERS_IN_LOG = process.env.SHOW_PAREMETERS_IN_LOG,
     CONSTRUCTED_FRONTEND_URL = `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/frontendIPConfigurations/${FRONTEND_IP_NAME}`,
     CONSTRUCTED_BACKEND_URL = `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/backendAddressPools/${BACKEND_POOL_NAME}`,
     CONSTRUCTED_PROBE_URL = `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/probes/${PROBE_NAME}`;
 
-const token = process.env.TOKEN;
-const credentials = new msRest.TokenCredentials(token);
-const client = new NetworkManagementClient(credentials, SUBSCRIPTION_ID);
+
+// TODO: Pass as constructor instead
+var credentials;
+var client;
+
 
 exports.main = async function(context, req) {
 
         console.log('JavaScript HTTP trigger function processed a request.');
+        console.log('SHOW_PAREMETERS_IN_LOG: '+ SHOW_PAREMETERS_IN_LOG );
+        credentials =  await msRestNodeAuth.loginWithServicePrincipalSecret(REST_APP_ID, REST_APP_SECRET, TENANT_ID);
+        client = new NetworkManagementClient(credentials, SUBSCRIPTION_ID);
         var addELBPort = new AddLoadBalancerPort();
         var elbPorts = await addELBPort.getLoadBalancerPorts();
-        console.log('************************ELBPORTS*************************' + JSON.stringify(elbPorts));
-        // var getELB = await addELBPort.getLoadBalancer();
-        var getPorts: any = await addELBPort.getFortiGateVIPs();
-        // console.log("ports" + getPorts);
         addELBPort.addPortToExternalLoadBalancer();
 
         if (req && req.body && req.body.data && req.body.data.rawlog && req.body.data.rawog.srcip) {
@@ -59,7 +60,6 @@ exports.main = async function(context, req) {
     }
 
 };
-// Probably better to Get Full JSON then get ports etc as needed.
 
 class AddLoadBalancerPort {
     private loadBalancerJSON: NetworkManagementModels.LoadBalancersGetResponse;
@@ -204,16 +204,15 @@ class AddLoadBalancerPort {
         return [...Array(size).keys()].map((i) => i + startAt);
     }
 
-    public splitURL(indexItem) {
+    public splitURL(indexItem): string {
         var lastindex = indexItem.lastIndexOf('/');
         var result = indexItem.substring(lastindex + 1);
         return result;
     }
 
     public async buildLoadBalancerParameters() {
-        console.log(PERSISTENCE);
+        console.log('Session Persistence type: ' + PERSISTENCE);
         var parameters;
-        var item: any;
         try {
             var vipStringList: any  =  await this.getFortiGateVIPs();
             var vipJSONList = JSON.parse(vipStringList);
@@ -233,8 +232,6 @@ class AddLoadBalancerPort {
                 } else if (vipList.extport.includes('-')) {
                     var splitPortRange = vipList.extport.split('-');
                     let getRange = this.range( parseInt(splitPortRange[1]) - parseInt(splitPortRange[0]) + 1, parseInt(splitPortRange[0]));
-                    console.log('range ' + getRange);
-                    console.log(splitPortRange);
 
                     for (var port in getRange) {
                         var mappedProtocol = this.getMappedProtocol(vipList.protocol);
@@ -257,8 +254,7 @@ class AddLoadBalancerPort {
                             + mappedProtocol);
                             break;
                         } else {
-
-                                parameters = {
+                            parameters = {
                                     protocol : mappedProtocol,
                                     loadDistribution : persistence,
                                     frontendIPConfiguration : {
@@ -275,14 +271,14 @@ class AddLoadBalancerPort {
                                     name: vipList.name + '-' + port,
                                 };
 
-                                if (mappedProtocol === 'Tcp') {
+                            if (mappedProtocol === 'Tcp') {
                                      portsAddedTCP.push(getRange[port]);
-                                } else {(mappedProtocol === 'Udp'); } {
+                            } else if (mappedProtocol === 'Udp')  {
                                     portsAddedUDP.push(getRange[port]);
 
                         }
 
-                                loadBalancingRules.push(parameters);
+                            loadBalancingRules.push(parameters);
                             }
                             }
 
@@ -321,7 +317,7 @@ class AddLoadBalancerPort {
 
                     if (mappedProtocol === 'Tcp') {
                         portsAddedTCP.push(parseInt(vipList.extport, 10));
-                   } else {(mappedProtocol === 'Udp'); } {
+                   } else if(mappedProtocol === 'Udp') {
                        portsAddedUDP.push(parseInt(vipList.extport, 10));
                    }
            }
@@ -332,7 +328,7 @@ class AddLoadBalancerPort {
         }
         throw console.error('Error in buildLoadBalancerParameters. Data from fortigate Not present');
     }
-    public async addPortToExternalLoadBalancer() {
+    public async addPortToExternalLoadBalancer(): Promise<void> {
         var probePort = await this.getProbePort();
         var publicIP = await this.getFrontEndPublicIP();
         var backendIPconfig = await this.getbackendIPConfigurationList();
@@ -364,10 +360,14 @@ class AddLoadBalancerPort {
             }],
             loadBalancingRules: getloadBalancingRules,
         };
-        console.log('****************************************************************************');
-        console.log(parameters);
+        if (SHOW_PAREMETERS_IN_LOG  === 'true'){
+            console.log('*******************************PARAMETERS*********************************************');
+            console.log(parameters);
+            console.log('**********************************END*************************************************');
+        }
         try {
-        let addPort = await client.loadBalancers.createOrUpdate(RESOURCE_GROUP_NAME, LOADBALANCER_NAME, parameters);
+            console.log('Updating Load Balancer rules');
+            let addPort = await client.loadBalancers.createOrUpdate(RESOURCE_GROUP_NAME, LOADBALANCER_NAME, parameters);
         } catch (err) {
             console.log(`Error: ${err}`);
             throw err;
@@ -386,6 +386,7 @@ class FortiGateAPIRequests {
     public httpsGetRequest() {
         return new Promise((resolve, reject) => {
             var url = 'https://' + FORTIGATE_IP + this.path ;
+            console.log('HTTPS function');
             // RejectUnathorized set to false for self-signed certs.
             var options = {
                 rejectUnauthorized : false,
@@ -393,7 +394,8 @@ class FortiGateAPIRequests {
                     Authorization : 'Bearer ' + API_KEY,
                   },
             };
-            https.get(url, options, async function(res) {
+            https.get(url, options, function(res) {
+                        console.log("Inside https function")
                      var body = '';
                      console.log('Fortigate StatusCode: ' + res.statusCode);
                      res.on('data', function(chunk) {
