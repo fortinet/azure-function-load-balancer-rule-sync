@@ -257,7 +257,7 @@ class AddLoadBalancerPort {
     }
 
     // Get the Port tied to the probe. Required to Create/Update loadbalancer rules.
-    public async getProbePort() {
+    public async getProbePort(): Promise<number> {
         const getELB = await this.getLoadBalancer();
 
         if (getELB && getELB.probes) {
@@ -276,6 +276,27 @@ class AddLoadBalancerPort {
         }
         // Throw an error here or else typescript will complain
         throw console.error('Error in getProbePort. Probes data could not be retrieved.');
+    }
+    // Get the Protocol tied to the probe. Required by the type, but the API call will work without this.
+    public async getProbeProtocol(): Promise<NetworkManagementModels.ProbeProtocol> {
+        const getELB = await this.getLoadBalancer();
+        if (getELB && getELB.probes) {
+            console.log(getELB.probes)
+            for (let item of getELB.probes) {
+                if (item.name === PROBE_NAME) {
+                    console.log(`Probe: ${item.name}, ${item.protocol}`);
+                    return item.protocol;
+                } else {
+                    throw console.error(
+                        `Error in getProbeProtocol. No probe found with the name ${PROBE_NAME}`,
+                    );
+                }
+            }
+        } else {
+            throw console.error('Error in getProbeProtocol. Probes data could not be retrieved.');
+        }
+        // Throw an error here or else typescript will complain
+        throw console.error('Error in getProbeProtocol. Probes data could not be retrieved.');
     }
 
     public range(size: number, startAt: number): ReadonlyArray<number> {
@@ -426,10 +447,12 @@ class AddLoadBalancerPort {
         );
     }
     public async addPortToExternalLoadBalancer(): Promise<void> {
-        var probePort = await this.getProbePort();
-        var publicIP = await this.getFrontEndPublicIP();
+        var probePort: number = await this.getProbePort();
+        var publicIP: string = await this.getFrontEndPublicIP();
+        var probeProtocol: NetworkManagementModels.ProbeProtocol = await this.getProbeProtocol();
         var backendIPconfig: NetworkManagementModels.NetworkInterfaceIPConfiguration[] = await this.getbackendIPConfigurationList();
         var getloadBalancingRules: Models.LoadBalancingRule[] = await this.buildLoadBalancerParameters();
+
         const parameters: Models.LoadBalancer = {
             location: LOCATION,
             frontendIPConfigurations: [
@@ -453,12 +476,11 @@ class AddLoadBalancerPort {
                 },
             ],
             probes: [
-                // TODO: fix protocol
                 {
                     id: CONSTRUCTED_PROBE_URL,
                     port: probePort,
                     name: PROBE_NAME,
-                    protocol: 'Tcp',
+                    protocol: probeProtocol,
                 },
             ],
             loadBalancingRules: getloadBalancingRules,
