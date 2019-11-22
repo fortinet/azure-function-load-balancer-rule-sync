@@ -32,32 +32,4 @@ export class FortiGateAPIRequests {
         }
         throw console.error(`Error retrieving VIP data from Fortigate: ${url} `);
     }
-    // public httpsGetRequest() {
-    //     return new Promise((resolve, reject) => {
-    //         var url = 'https://' + FORTIGATE_IP + this.path;
-    //         console.log('HTTPS function');
-    //         // RejectUnathorized set to false for self-signed certs.
-    //         var options = {
-    //             rejectUnauthorized: false,
-    //             headers: {
-    //                 Authorization: 'Bearer ' + API_KEY
-    //             }
-    //         };
-    //         https
-    //             .get(url, options, function(res) {
-    //                 console.log('Inside https function');
-    //                 var body = '';
-    //                 console.log('Fortigate StatusCode: ' + res.statusCode);
-    //                 res.on('data', function(chunk) {
-    //                     body = body + chunk;
-    //                 });
-    //                 res.on('end', function() {
-    //                     resolve(body);
-    //                 });
-    //             })
-    //             .on('error', function(e) {
-    //                 console.log('Error retreiving data from Fortigate: ' + e.message);
-    //             });
-    //     });
-    // }
 }

@@ -5,21 +5,14 @@
 // via the Azure API.
 // Supports UDP/TCP rules. Will drop SCTP or ICMP from the fortigate.
 //
-
 import * as msRest from '@azure/ms-rest-js';
 import { FortiGateAPIRequests } from './fortigateApiRequests';
 import * as Models from '@azure/arm-network/src/models';
-import * as msRestAzure from '@azure/ms-rest-azure-js';
 import * as msRestNodeAuth from '@azure/ms-rest-nodeauth';
-import axios from 'axios';
 import {
     NetworkManagementClient,
     NetworkManagementModels,
-    NetworkManagementMappers,
-    LoadBalancerProbes,
 } from '@azure/arm-network';
-import https from 'https';
-
 
 const {
     REST_APP_ID,
@@ -44,17 +37,10 @@ const {
     CONSTRUCTED_BACKEND_URL = `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/backendAddressPools/${BACKEND_POOL_NAME}`,
     CONSTRUCTED_PROBE_URL = `/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Network/loadBalancers/${LOADBALANCER_NAME}/probes/${PROBE_NAME}`;
 
-// const { PERSISTENCE, SHOW_PARAMETERS_IN_LOG, RUN_ALWAYS, REJECT_UNAUTHORIZED_CERTS } = {
-//     PERSISTENCE: 'default',
-//     SHOW_PARAMETERS_IN_LOG: false,
-//     RUN_ALWAYS: false,
-//     REJECT_UNAUTHORIZED_CERTS: false,
-//     ...process.env
-// };
 
-// TODO: Pass as constructor instead
-var credentials;
-var client;
+var credentials: msRest.ServiceClientCredentials | msRestNodeAuth.ApplicationTokenCredentials;
+var client: NetworkManagementClient;
+
 
 exports.main = async function (context, req) {
     console.log('JavaScript HTTP trigger function processed a request.');
@@ -82,13 +68,15 @@ exports.main = async function (context, req) {
             req.body.data.rawlog.cfgpath === 'firewall.vip'
         ) {
             try {
+
                 console.log('VIP change triggered. Starting script');
-                credentials = await msRestNodeAuth.loginWithServicePrincipalSecret(
-                    REST_APP_ID,
-                    REST_APP_SECRET,
-                    TENANT_ID,
-                );
-                client = new NetworkManagementClient(credentials, SUBSCRIPTION_ID);
+                credentials = <msRest.ServiceClientCredentials><any>
+                    await msRestNodeAuth.loginWithServicePrincipalSecret(
+                        REST_APP_ID,
+                        REST_APP_SECRET,
+                        TENANT_ID,
+                    );
+                client = new NetworkManagementClient(credentials, SUBSCRIPTION_ID)
                 var addELBPort = new AddLoadBalancerPort();
                 var elbPorts = await addELBPort.getLoadBalancerPorts();
                 await addELBPort.addPortToExternalLoadBalancer();
@@ -97,12 +85,13 @@ exports.main = async function (context, req) {
             }
         } else if (RUN_ALWAYS) {
             console.log('Always run triggered - will run any time function is triggered.');
-            credentials = await msRestNodeAuth.loginWithServicePrincipalSecret(
-                REST_APP_ID,
-                REST_APP_SECRET,
-                TENANT_ID,
-            );
-            client = new NetworkManagementClient(credentials, SUBSCRIPTION_ID);
+            credentials = <msRest.ServiceClientCredentials><any>
+                await msRestNodeAuth.loginWithServicePrincipalSecret(
+                    REST_APP_ID,
+                    REST_APP_SECRET,
+                    TENANT_ID,
+                );
+            client = new NetworkManagementClient(credentials, SUBSCRIPTION_ID)
             var addELBPort = new AddLoadBalancerPort();
             var elbPorts = await addELBPort.getLoadBalancerPorts();
             await addELBPort.addPortToExternalLoadBalancer();
@@ -161,7 +150,7 @@ class AddLoadBalancerPort {
         if (!this.loadBalancerJSON) {
             console.log(
                 `Fetching LoadBalancer Data for :
-                ${LOADBALANCER_NAME} in resource group: ${RESOURCE_GROUP_NAME} from Azure`
+                ${LOADBALANCER_NAME} in resource group: ${RESOURCE_GROUP_NAME} from Azure`,
             );
             try {
                 const getELB = await client.loadBalancers.get(
@@ -197,13 +186,13 @@ class AddLoadBalancerPort {
             console.log(
                 `'SCTP is not supported in Azure Load Balancers. Pick UDP or TCP in the VIP
                 ${fortigateProtocol}
-                returning null`
+                returning null`,
             );
             return null;
         } else if (fortigateProtocol === 'icmp') {
             console.log(
                 ` ICMP is not supported in Azure Load Balancers. Pick UDP or TCP in the VIP
-                ${fortigateProtocol} returning null`
+                ${fortigateProtocol} returning null`,
             );
             return null;
         } else {
@@ -222,7 +211,7 @@ class AddLoadBalancerPort {
         } else {
             throw console.error(
                 `No protocol could be maped using the current values:
-                ${PERSISTENCE}  Values must be one of the following: "Default" | "SourceIP" | "SourceIPProtocol"`
+                ${PERSISTENCE}  Values must be one of the following: "Default" | "SourceIP" | "SourceIPProtocol"`,
             );
         }
     }
@@ -237,7 +226,7 @@ class AddLoadBalancerPort {
                 } else {
                     throw console.error(
                         `Error in getFrontEndPublicIP. No FontEnd Config found with the name
-                        ${FRONTEND_IP_NAME}`
+                        ${FRONTEND_IP_NAME}`,
                     );
                 }
             }
@@ -248,7 +237,7 @@ class AddLoadBalancerPort {
         throw console.error('Error in getFrontEndPublicIP. JSON data could not be retrieved.');
     }
     // Returns a list of resource ID's attached to the backendAddress Pool. Required to update LoadBalancing rules.
-    public async getbackendIPConfigurationList() {
+    public async getbackendIPConfigurationList(): Promise<NetworkManagementModels.NetworkInterfaceIPConfiguration[]> {
         const getELB = await this.getLoadBalancer();
         if (getELB && getELB.backendAddressPools) {
             for (let item of getELB.backendAddressPools) {
@@ -298,8 +287,8 @@ class AddLoadBalancerPort {
         var result = indexItem.substring(lastindex + 1);
         return result;
     }
-
-    public async buildLoadBalancerParameters(): Promise<string[]> {
+    // Promise<string[]>
+    public async buildLoadBalancerParameters(): Promise<Models.LoadBalancingRule[]> {
         console.log(`Session Persistence type: ${PERSISTENCE}`);
         var parameters;
         try {
@@ -340,7 +329,7 @@ class AddLoadBalancerPort {
                             console.log(
                                 `Overlapping Port Ranges not supported. Dropping:
                                 ${vipList.name}
-                                ${mappedProtocol}`
+                                ${mappedProtocol}`,
                             );
                             break;
                         } else if (
@@ -349,13 +338,13 @@ class AddLoadBalancerPort {
                         ) {
                             console.log(
                                 `Overlapping Port Ranges not supported. Dropping:
-                                ${vipList.name}, ${mappedProtocol}`
+                                ${vipList.name}, ${mappedProtocol}`,
                             );
                             break;
                         } else if (mappedProtocol === null) {
                             console.log(
                                 `Unsupported Protocol Dropping VIP rule:
-                                ${vipList.name}, ${mappedProtocol}`
+                                ${vipList.name}, ${mappedProtocol}`,
                             );
                             break;
                         } else {
@@ -389,7 +378,7 @@ class AddLoadBalancerPort {
                     ) {
                         console.log(
                             `Overlapping Port Ranges not supported. Dropping:
-                                ${vipList.name}, ${mappedProtocol}`
+                                ${vipList.name}, ${mappedProtocol}`,
                         );
                         break;
                     } else if (
@@ -398,13 +387,13 @@ class AddLoadBalancerPort {
                     ) {
                         console.log(
                             `Overlapping Port Ranges not supported. Dropping:
-                            ${vipList.name}, ${mappedProtocol}`
+                            ${vipList.name}, ${mappedProtocol}`,
                         );
                         break;
                     } else if (mappedProtocol === null) {
                         console.log(
                             `Unsupported Protocol Dropping VIP rule:
-                            ${vipList.name}, ${mappedProtocol}`
+                            ${vipList.name}, ${mappedProtocol}`,
                         );
                         break;
                     } else {
@@ -439,9 +428,9 @@ class AddLoadBalancerPort {
     public async addPortToExternalLoadBalancer(): Promise<void> {
         var probePort = await this.getProbePort();
         var publicIP = await this.getFrontEndPublicIP();
-        var backendIPconfig = await this.getbackendIPConfigurationList();
-        var getloadBalancingRules = await this.buildLoadBalancerParameters();
-        var parameters = {
+        var backendIPconfig: NetworkManagementModels.NetworkInterfaceIPConfiguration[] = await this.getbackendIPConfigurationList();
+        var getloadBalancingRules: Models.LoadBalancingRule[] = await this.buildLoadBalancerParameters();
+        const parameters: Models.LoadBalancer = {
             location: LOCATION,
             frontendIPConfigurations: [
                 {
@@ -455,19 +444,21 @@ class AddLoadBalancerPort {
             backendAddressPools: [
                 {
                     id: CONSTRUCTED_BACKEND_URL,
-                    backendIPConfigurations: [
-                        {
-                            id: backendIPconfig,
-                        },
-                    ],
+                    backendIPConfigurations:
+
+                        backendIPconfig,
+
+
                     name: BACKEND_POOL_NAME,
                 },
             ],
             probes: [
+                // TODO: fix protocol
                 {
                     id: CONSTRUCTED_PROBE_URL,
                     port: probePort,
                     name: PROBE_NAME,
+                    protocol: 'Tcp',
                 },
             ],
             loadBalancingRules: getloadBalancingRules,
@@ -483,7 +474,7 @@ class AddLoadBalancerPort {
         }
         try {
             console.log('Updating Load Balancer rules');
-            let addPort = await client.loadBalancers.createOrUpdate(
+            await client.loadBalancers.createOrUpdate(
                 RESOURCE_GROUP_NAME,
                 LOADBALANCER_NAME,
                 parameters,
