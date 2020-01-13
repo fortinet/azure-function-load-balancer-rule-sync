@@ -28,7 +28,7 @@ const {
     BACKEND_POOL_NAME,
     PROBE_NAME,
 } = process.env,
-
+    INTERFACE = process.env.INTERFACE || 'any',
     PERSISTENCE = process.env.PERSISTENCE || 'default',
     SHOW_PARAMETERS_IN_LOG = process.env.SHOW_PARAMETERS_IN_LOG || false,
     RUN_ALWAYS = process.env.RUN_ALWAYS || false,
@@ -39,12 +39,13 @@ const {
 
 
 var credentials: msRest.ServiceClientCredentials | msRestNodeAuth.ApplicationTokenCredentials;
-var client: NetworkManagementClient;
+
 
 
 exports.main = async function (context, req) {
     console.log('JavaScript HTTP trigger function processed a request.');
     console.log(`SHOW_PARAMETERS_IN_LOG: ${SHOW_PARAMETERS_IN_LOG}`);
+    var client: NetworkManagementClient;
     if (
         REST_APP_ID &&
         REST_APP_SECRET &&
@@ -77,11 +78,11 @@ exports.main = async function (context, req) {
                         TENANT_ID,
                     );
                 client = new NetworkManagementClient(credentials, SUBSCRIPTION_ID)
-                var addELBPort = new AddLoadBalancerPort();
+                var addELBPort = new AddLoadBalancerPort(client);
                 var elbPorts = await addELBPort.getLoadBalancerPorts();
                 await addELBPort.addPortToExternalLoadBalancer();
             } catch (err) {
-                context.log(`Error Retrieving the Source IP ${err}`);
+                context.error(`Error in script:  ${err}`);
             }
         } else if (RUN_ALWAYS) {
             console.log('Always run triggered - will run any time function is triggered.');
@@ -92,7 +93,7 @@ exports.main = async function (context, req) {
                     TENANT_ID,
                 );
             client = new NetworkManagementClient(credentials, SUBSCRIPTION_ID)
-            var addELBPort = new AddLoadBalancerPort();
+            var addELBPort = new AddLoadBalancerPort(client);
             var elbPorts = await addELBPort.getLoadBalancerPorts();
             await addELBPort.addPortToExternalLoadBalancer();
         } else {
@@ -124,8 +125,13 @@ exports.main = async function (context, req) {
     }
 };
 
-class AddLoadBalancerPort {
+export class AddLoadBalancerPort {
     private loadBalancerJSON: NetworkManagementModels.LoadBalancersGetResponse;
+    private client: NetworkManagementClient;
+    constructor(client: NetworkManagementClient) {
+        this.client = client;
+
+    }
 
     public async getLoadBalancerPorts() {
         const getELB = await this.getLoadBalancer();
@@ -145,7 +151,11 @@ class AddLoadBalancerPort {
         var getfrontEndConfigurations = getfrontEnd.frontendIPConfigurations;
         return getfrontEndConfigurations;
     }
-
+    public async getSKU(): Promise<NetworkManagementModels.LoadBalancerSku> {
+        const getELB = await this.getLoadBalancer();
+        var getSKUFromELB = getELB.sku;
+        return getSKUFromELB;
+    }
     public async getLoadBalancer() {
         if (!this.loadBalancerJSON) {
             console.log(
@@ -153,14 +163,16 @@ class AddLoadBalancerPort {
                 ${LOADBALANCER_NAME} in resource group: ${RESOURCE_GROUP_NAME} from Azure`,
             );
             try {
-                const getELB = await client.loadBalancers.get(
+                const getELB = await this.client.loadBalancers.get(
                     RESOURCE_GROUP_NAME,
                     LOADBALANCER_NAME,
                 );
+                console.log("GETELB")
+                console.log(getELB)
                 this.loadBalancerJSON = getELB;
                 return getELB;
             } catch (err) {
-                throw console.error(`Error in getting Load Balancer Data from Azure: + ${err}`);
+                throw console.error(`Error in getting Load Balancer Data from Azure:  ${err}`);
             }
         } else {
             const getELB = this.loadBalancerJSON;
@@ -259,7 +271,6 @@ class AddLoadBalancerPort {
     // Get the Port tied to the probe. Required to Create/Update loadbalancer rules.
     public async getProbePort(): Promise<number> {
         const getELB = await this.getLoadBalancer();
-
         if (getELB && getELB.probes) {
             for (let item of getELB.probes) {
                 if (item.name === PROBE_NAME) {
@@ -308,13 +319,14 @@ class AddLoadBalancerPort {
         var result = indexItem.substring(lastindex + 1);
         return result;
     }
-    // Promise<string[]>
     public async buildLoadBalancerParameters(): Promise<Models.LoadBalancingRule[]> {
         console.log(`Session Persistence type: ${PERSISTENCE}`);
         var parameters;
+        var regex = /^([0-9A-Za-z_.-]+)$/
         try {
             var vipStringList: any = await this.getFortiGateVIPs();
             var vipJSONList = vipStringList;
+            console.log(vipJSONList)
         } catch (err) {
             console.log(`Error fetching JSON List in buildLoadBalancerParameters : ${err}`);
             throw err;
@@ -327,45 +339,100 @@ class AddLoadBalancerPort {
         if (vipJSONList && vipJSONList.results) {
             var persistence = this.getMappedloadDistribution();
             for (let vipList of vipJSONList.results) {
-                if (parseInt(vipList.extport, 10) === 0 || parseInt(vipList.mappedport, 10) === 0) {
-                    console.log(`External and Backend Ports of 0 are not supported.
+                // Checks if External interface matches env var INTERFACE, any, or if the INTERFACE === ALL
+                // example: INTERFACE = port1 : will add any VIP with extintf with port1 and all extintf with 'any'
+                // example2: INTERFACE = any : will match extintf with a value of 'any'
+                if (vipList.extintf === INTERFACE ||
+                    vipList.extintf === 'any' ||
+                    INTERFACE.toLowerCase() === 'any' ||
+                    INTERFACE.toLowerCase() === 'all') {
+                    if (parseInt(vipList.extport, 10) === 0 || parseInt(vipList.mappedport, 10) === 0) {
+                        console.log(`External and Backend Ports of 0 are not supported.
                      (Make sure PortForwarding is enabled). Skipping Rule: ${vipList.name}`);
-                    // Check if a range is present in the external port range.
-                } else if (vipList.extport.includes('-')) {
-                    var splitPortRange = vipList.extport.split('-');
-                    let getRange = this.range(
-                        parseInt(splitPortRange[1]) - parseInt(splitPortRange[0]) + 1,
-                        parseInt(splitPortRange[0]),
-                    );
-
-                    for (var port in getRange) {
-                        var mappedProtocol = this.getMappedProtocol(vipList.protocol);
-                        //
-                        // Check for overlapping ports.If no check is done the entire update request will be dropped.
-                        // Overlapping ports with different protocols are supported.(UDP/TCP)
-                        // Each port is added to a respective list. portsAddedTCP or portsAddedUDP
-                        // This reducces the complexity of iterating over an ever increasing list of objects.
-                        //
-                        if (mappedProtocol === 'Tcp' && portsAddedTCP.includes(getRange[port])) {
-                            console.log(
-                                `Overlapping Port Ranges not supported. Dropping:
+                        // Check if a range is present in the external port range.
+                    } else if (vipList.extport.includes('-')) {
+                        var splitPortRange = vipList.extport.split('-');
+                        let getRange = this.range(
+                            parseInt(splitPortRange[1]) - parseInt(splitPortRange[0]) + 1,
+                            parseInt(splitPortRange[0]),
+                        );
+                        for (var port in getRange) {
+                            var mappedProtocol = this.getMappedProtocol(vipList.protocol);
+                            //
+                            // Check for overlapping ports.If no check is done the entire update request will be dropped.
+                            // Overlapping ports with different protocols are supported.(UDP/TCP)
+                            // Each port is added to a respective list. portsAddedTCP or portsAddedUDP
+                            // This reducces the complexity of iterating over an ever increasing list of objects.
+                            //
+                            if (mappedProtocol === 'Tcp' && portsAddedTCP.includes(getRange[port])) {
+                                console.log(
+                                    `Overlapping Port Ranges not supported. Dropping:
                                 ${vipList.name}
                                 ${mappedProtocol}`,
-                            );
-                            break;
-                        } else if (
-                            mappedProtocol === 'Udp' &&
-                            portsAddedUDP.includes(getRange[port])
+                                );
+                                break;
+                            } else if (
+                                mappedProtocol === 'Udp' &&
+                                portsAddedUDP.includes(getRange[port])
+                            ) {
+                                console.log(
+                                    `Overlapping Port Ranges not supported. Dropping:
+                                ${vipList.name}, ${mappedProtocol}`,
+                                );
+                                break;
+                            } else if (mappedProtocol === null) {
+                                console.log(
+                                    `Unsupported Protocol Dropping VIP rule:
+                                ${vipList.name}, ${mappedProtocol}`,
+                                );
+                                break;
+                            } else {
+                                parameters = {
+                                    protocol: mappedProtocol,
+                                    loadDistribution: persistence,
+                                    frontendIPConfiguration: {
+                                        id: CONSTRUCTED_FRONTEND_URL,
+                                    },
+                                    backendAddressPool: { id: CONSTRUCTED_BACKEND_URL },
+                                    probe: { id: CONSTRUCTED_PROBE_URL },
+                                    frontendPort: getRange[port],
+                                    backendPort: getRange[port],
+                                    name: `${vipList.name}-${port}`,
+                                };
+
+                                if (mappedProtocol === 'Tcp') {
+                                    portsAddedTCP.push(getRange[port]);
+                                } else if (mappedProtocol === 'Udp') {
+                                    portsAddedUDP.push(getRange[port]);
+                                }
+
+                                loadBalancingRules.push(parameters);
+                            }
+                        }
+                    } else {
+                        var mappedProtocol = this.getMappedProtocol(vipList.protocol);
+                        if (
+                            mappedProtocol === 'Tcp' &&
+                            portsAddedTCP.includes(parseInt(vipList.extport, 10))
                         ) {
                             console.log(
                                 `Overlapping Port Ranges not supported. Dropping:
                                 ${vipList.name}, ${mappedProtocol}`,
                             );
                             break;
+                        } else if (
+                            mappedProtocol === 'Udp' &&
+                            portsAddedUDP.includes(parseInt(vipList.extport, 10))
+                        ) {
+                            console.log(
+                                `Overlapping Port Ranges not supported. Dropping:
+                            ${vipList.name}, ${mappedProtocol}`,
+                            );
+                            break;
                         } else if (mappedProtocol === null) {
                             console.log(
                                 `Unsupported Protocol Dropping VIP rule:
-                                ${vipList.name}, ${mappedProtocol}`,
+                            ${vipList.name}, ${mappedProtocol}`,
                             );
                             break;
                         } else {
@@ -377,65 +444,17 @@ class AddLoadBalancerPort {
                                 },
                                 backendAddressPool: { id: CONSTRUCTED_BACKEND_URL },
                                 probe: { id: CONSTRUCTED_PROBE_URL },
-                                frontendPort: getRange[port],
-                                backendPort: getRange[port],
-                                name: `${vipList.name}-${port}`,
+                                frontendPort: parseInt(vipList.extport, 10),
+                                backendPort: parseInt(vipList.mappedport, 10),
+                                name: vipList.name,
                             };
+                            loadBalancingRules.push(parameters);
 
                             if (mappedProtocol === 'Tcp') {
-                                portsAddedTCP.push(getRange[port]);
+                                portsAddedTCP.push(parseInt(vipList.extport, 10));
                             } else if (mappedProtocol === 'Udp') {
-                                portsAddedUDP.push(getRange[port]);
+                                portsAddedUDP.push(parseInt(vipList.extport, 10));
                             }
-
-                            loadBalancingRules.push(parameters);
-                        }
-                    }
-                } else {
-                    var mappedProtocol = this.getMappedProtocol(vipList.protocol);
-                    if (
-                        mappedProtocol === 'Tcp' &&
-                        portsAddedTCP.includes(parseInt(vipList.extport, 10))
-                    ) {
-                        console.log(
-                            `Overlapping Port Ranges not supported. Dropping:
-                                ${vipList.name}, ${mappedProtocol}`,
-                        );
-                        break;
-                    } else if (
-                        mappedProtocol === 'Udp' &&
-                        portsAddedUDP.includes(parseInt(vipList.extport, 10))
-                    ) {
-                        console.log(
-                            `Overlapping Port Ranges not supported. Dropping:
-                            ${vipList.name}, ${mappedProtocol}`,
-                        );
-                        break;
-                    } else if (mappedProtocol === null) {
-                        console.log(
-                            `Unsupported Protocol Dropping VIP rule:
-                            ${vipList.name}, ${mappedProtocol}`,
-                        );
-                        break;
-                    } else {
-                        parameters = {
-                            protocol: mappedProtocol,
-                            loadDistribution: persistence,
-                            frontendIPConfiguration: {
-                                id: CONSTRUCTED_FRONTEND_URL,
-                            },
-                            backendAddressPool: { id: CONSTRUCTED_BACKEND_URL },
-                            probe: { id: CONSTRUCTED_PROBE_URL },
-                            frontendPort: parseInt(vipList.extport, 10),
-                            backendPort: parseInt(vipList.mappedport, 10),
-                            name: vipList.name,
-                        };
-                        loadBalancingRules.push(parameters);
-
-                        if (mappedProtocol === 'Tcp') {
-                            portsAddedTCP.push(parseInt(vipList.extport, 10));
-                        } else if (mappedProtocol === 'Udp') {
-                            portsAddedUDP.push(parseInt(vipList.extport, 10));
                         }
                     }
                 }
@@ -452,9 +471,11 @@ class AddLoadBalancerPort {
         var probeProtocol: NetworkManagementModels.ProbeProtocol = await this.getProbeProtocol();
         var backendIPconfig: NetworkManagementModels.NetworkInterfaceIPConfiguration[] = await this.getbackendIPConfigurationList();
         var getloadBalancingRules: Models.LoadBalancingRule[] = await this.buildLoadBalancerParameters();
+        var getSku: NetworkManagementModels.LoadBalancerSku = await this.getSKU();
 
         const parameters: Models.LoadBalancer = {
             location: LOCATION,
+            sku: getSku,
             frontendIPConfigurations: [
                 {
                     id: CONSTRUCTED_FRONTEND_URL,
@@ -496,7 +517,7 @@ class AddLoadBalancerPort {
         }
         try {
             console.log('Updating Load Balancer rules');
-            await client.loadBalancers.createOrUpdate(
+            await this.client.loadBalancers.createOrUpdate(
                 RESOURCE_GROUP_NAME,
                 LOADBALANCER_NAME,
                 parameters,
