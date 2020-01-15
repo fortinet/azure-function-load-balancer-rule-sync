@@ -130,7 +130,6 @@ export class AddLoadBalancerPort {
     private client: NetworkManagementClient;
     constructor(client: NetworkManagementClient) {
         this.client = client;
-
     }
 
     public async getLoadBalancerPorts() {
@@ -155,6 +154,26 @@ export class AddLoadBalancerPort {
         const getELB = await this.getLoadBalancer();
         var getSKUFromELB = getELB.sku;
         return getSKUFromELB;
+    }
+    public async getOutboundRules(): Promise<NetworkManagementModels.OutboundRule[]> {
+        const getELB = await this.getLoadBalancer();
+        var getOutboundRulesfromELB = getELB.outboundRules;
+        return getOutboundRulesfromELB;
+    }
+    public async getBackendAddressPools(): Promise<NetworkManagementModels.BackendAddressPool[]> {
+        const getELB = await this.getLoadBalancer();
+        var getBackendAddressPoolsfromELB = getELB.backendAddressPools;
+        return getBackendAddressPoolsfromELB;
+    }
+    public async getInboundNatRules(): Promise<NetworkManagementModels.InboundNatRule[]> {
+        const getELB = await this.getLoadBalancer();
+        var getInboundNatRulesfromELB = getELB.inboundNatRules;
+        return getInboundNatRulesfromELB;
+    }
+    public async getInboundNatPools(): Promise<NetworkManagementModels.InboundNatPool[]> {
+        const getELB = await this.getLoadBalancer();
+        var getInboundNatPoolsfromELB = getELB.inboundNatPools;
+        return getInboundNatPoolsfromELB;
     }
     public async getLoadBalancer() {
         if (!this.loadBalancerJSON) {
@@ -467,35 +486,22 @@ export class AddLoadBalancerPort {
     }
     public async addPortToExternalLoadBalancer(): Promise<void> {
         var probePort: number = await this.getProbePort();
-        var publicIP: string = await this.getFrontEndPublicIP();
         var probeProtocol: NetworkManagementModels.ProbeProtocol = await this.getProbeProtocol();
-        var backendIPconfig: NetworkManagementModels.NetworkInterfaceIPConfiguration[] = await this.getbackendIPConfigurationList();
         var getloadBalancingRules: Models.LoadBalancingRule[] = await this.buildLoadBalancerParameters();
         var getSku: NetworkManagementModels.LoadBalancerSku = await this.getSKU();
-
+        var getOutBoundRules: NetworkManagementModels.OutboundRule[] = await this.getOutboundRules();
+        var getinboundNatRules: NetworkManagementModels.InboundNatRule[] = await this.getInboundNatRules();
+        var getinboundNatPools: NetworkManagementModels.InboundNatPool[] = await this.getInboundNatPools();
+        var getfrontendIPConfigurations: NetworkManagementModels.FrontendIPConfiguration[] = await this.getfrontendIPConfigurations();
+        var getbackendAddressPools: NetworkManagementModels.FrontendIPConfiguration[] = await this.getBackendAddressPools();
         const parameters: Models.LoadBalancer = {
             location: LOCATION,
             sku: getSku,
-            frontendIPConfigurations: [
-                {
-                    id: CONSTRUCTED_FRONTEND_URL,
-                    publicIPAddress: {
-                        id: publicIP,
-                    },
-                    name: FRONTEND_IP_NAME,
-                },
-            ],
-            backendAddressPools: [
-                {
-                    id: CONSTRUCTED_BACKEND_URL,
-                    backendIPConfigurations:
-
-                        backendIPconfig,
-
-
-                    name: BACKEND_POOL_NAME,
-                },
-            ],
+            frontendIPConfigurations: getfrontendIPConfigurations,
+            backendAddressPools: getbackendAddressPools,
+            outboundRules: getOutBoundRules,
+            inboundNatRules: getinboundNatRules,
+            inboundNatPools: getinboundNatPools,
             probes: [
                 {
                     id: CONSTRUCTED_PROBE_URL,
