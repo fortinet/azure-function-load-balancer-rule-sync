@@ -14,7 +14,6 @@ export class FortiGateAPIRequests {
     }
     public async httpsGetRequest() {
         var url = 'https://' + this.FORTIGATE_IP + this.path;
-        console.log('HTTPS function');
         const agent = new https.Agent({
             rejectUnauthorized: this.rejectCerts
         });
