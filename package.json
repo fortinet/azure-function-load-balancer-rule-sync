@@ -7,7 +7,7 @@
     "@azure/arm-network": "^19.0.0",
     "@azure/ms-rest-js": "^2.0.4",
     "@azure/ms-rest-nodeauth": "^2.0.5",
-    "axios": "^0.19.0"
+    "axios": "^0.21.1"
   },
   "devDependencies": {
     "nyc": "^14.1.1",
